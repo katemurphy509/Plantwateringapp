@@ -2,6 +2,12 @@
 
 Your prototype shows *what* the product looks like. This document explains *why* it could become a business. Answer in your own words and refer to course concepts by name. See the term project brief on Moodle for length and grading.
 
+## Working revenue recommendation
+
+Start with a useful, ad-free free tier for watering schedules and a modest optional subscription for extras such as shared household care, longer care histories, and trip planning. Test which extras people would actually pay for before building them. Treat sitter bookings as a later opportunity: the marketplace could earn a transparent fee per completed booking, but it needs enough local sitters and plant owners, plus screening, reviews, support, and clear responsibility when something goes wrong.
+
+Avoid relying on display ads at launch. They usually need substantial traffic to earn meaningful revenue and can interrupt a calm, trust-based care routine. Sponsored plant products could be tested later, clearly labeled and only when they genuinely help users. A sitter marketplace is a two-sided market (plant owners and sitters); the reminder app can be valuable on its own before that network exists.
+
 ## 1. The idea
 
 - **Customer:** Who exactly is it for?

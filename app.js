@@ -1,141 +1,237 @@
-// ============================================================
-// app.js — what your site DOES.
-// Plain JavaScript, no libraries, no installs.
-// It uses STARTUP and LISTINGS from data.js (loaded first).
-// ============================================================
-
 (function () {
   "use strict";
 
-  // ----------------------------------------------------------
-  // 1. Saving things in the browser (localStorage).
-  //    This only remembers things on THIS browser on THIS device.
-  //    Your teammates and your customers will NOT see it.
-  //    A real product would need a server and a database for that.
-  // ----------------------------------------------------------
+  const DAY_MS = 24 * 60 * 60 * 1000;
   const storage = {
     get: function (key, fallback) {
       try {
         const saved = localStorage.getItem(key);
         return saved === null ? fallback : JSON.parse(saved);
       } catch (error) {
-        return fallback; // storage blocked or broken: just carry on
+        return fallback;
       }
     },
     set: function (key, value) {
       try {
         localStorage.setItem(key, JSON.stringify(value));
       } catch (error) {
-        // storage blocked (e.g. private window): ignore
+        // The app remains usable for this visit if browser storage is unavailable.
       }
     }
   };
 
-  let savedIds = storage.get("savedIds", []);
+  const savedPlants = storage.get("sproutPlants", null);
+  let plants = Array.isArray(savedPlants) ? savedPlants : SAMPLE_PLANTS.map(function (plant) {
+    return {
+      id: plant.id,
+      name: plant.name,
+      species: plant.species,
+      location: plant.location,
+      interval: plant.interval,
+      lastWateredAt: Date.now() - plant.lastWatered * DAY_MS,
+      icon: plant.icon
+    };
+  });
 
-  // ----------------------------------------------------------
-  // 2. Put the startup's name and pitch on the page.
-  // ----------------------------------------------------------
-  document.title = STARTUP.name;
-  document.getElementById("brand-name").textContent = STARTUP.name;
+  const plantTotal = document.getElementById("plant-total");
+  const dueTotal = document.getElementById("due-total");
+  const dueCaption = document.getElementById("due-caption");
+  const nextDue = document.getElementById("next-due");
+  const nextCaption = document.getElementById("next-caption");
+  const priorityList = document.getElementById("priority-list");
+  const allPlants = document.getElementById("all-plants");
+  const emptyState = document.getElementById("empty-state");
+  const plantsEmpty = document.getElementById("plants-empty");
+  const dialog = document.getElementById("plant-dialog");
+  const form = document.getElementById("plant-form");
+
+  document.title = STARTUP.name + " | Plant care, in rhythm";
   document.getElementById("tagline").textContent = STARTUP.tagline;
   document.getElementById("pitch").textContent = STARTUP.pitch;
+  document.getElementById("today-label").textContent = new Intl.DateTimeFormat("en", {
+    weekday: "long", month: "long", day: "numeric"
+  }).format(new Date()).toUpperCase();
 
-  // ----------------------------------------------------------
-  // 3. Views: show one section at a time, based on the #link in the address bar.
-  // ----------------------------------------------------------
-  function showView() {
-    const requested = (window.location.hash || "#home").slice(1);
-    const views = document.querySelectorAll("[data-view]");
-    const exists = Array.prototype.some.call(views, function (view) {
-      return view.id === requested;
-    });
-    const current = exists ? requested : "home";
-
-    views.forEach(function (view) {
-      view.hidden = view.id !== current;
-    });
-
-    document.querySelectorAll("nav a").forEach(function (link) {
-      if (link.getAttribute("href") === "#" + current) {
-        link.setAttribute("aria-current", "page");
-      } else {
-        link.removeAttribute("aria-current");
-      }
-    });
-
-    window.scrollTo(0, 0);
+  function getDaysUntilDue(plant) {
+    const daysSinceWatering = Math.floor((Date.now() - plant.lastWateredAt) / DAY_MS);
+    return Number(plant.interval) - daysSinceWatering;
   }
 
-  window.addEventListener("hashchange", showView);
-
-  // ----------------------------------------------------------
-  // 4. Explore page: build one card per listing.
-  //    We use textContent (not innerHTML) so text is always shown
-  //    as text — a basic security habit.
-  // ----------------------------------------------------------
-  const grid = document.getElementById("listing-grid");
-  const searchBox = document.getElementById("search-box");
-  const emptyMessage = document.getElementById("empty-message");
-  const savedCount = document.getElementById("saved-count");
-
-  function makeCard(item) {
-    const card = document.createElement("article");
-    card.className = "card";
-
-    const tag = document.createElement("span");
-    tag.className = "tag";
-    tag.textContent = item.category;
-
-    const title = document.createElement("h2");
-    title.textContent = item.name;
-
-    const text = document.createElement("p");
-    text.textContent = item.description;
-
-    const isSaved = savedIds.indexOf(item.id) !== -1;
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "button secondary";
-    button.textContent = isSaved ? "Saved ✓" : "Save";
-    button.setAttribute("aria-pressed", isSaved ? "true" : "false");
-    button.addEventListener("click", function () {
-      toggleSaved(item.id);
+  function getSortedPlants() {
+    return plants.slice().sort(function (first, second) {
+      return getDaysUntilDue(first) - getDaysUntilDue(second);
     });
+  }
 
-    card.append(tag, title, text, button);
+  function getStatus(daysUntilDue) {
+    if (daysUntilDue < 0) {
+      const daysLate = Math.abs(daysUntilDue);
+      return { label: daysLate === 1 ? "1 day overdue" : daysLate + " days overdue", type: "overdue" };
+    }
+    if (daysUntilDue === 0) return { label: "Due today", type: "today" };
+    if (daysUntilDue === 1) return { label: "Due tomorrow", type: "soon" };
+    return { label: "In " + daysUntilDue + " days", type: "upcoming" };
+  }
+
+  function makeElement(tag, className, text) {
+    const element = document.createElement(tag);
+    if (className) element.className = className;
+    if (text !== undefined) element.textContent = text;
+    return element;
+  }
+
+  function makePlantRow(plant) {
+    const daysUntilDue = getDaysUntilDue(plant);
+    const status = getStatus(daysUntilDue);
+    const row = makeElement("article", "plant-row");
+    const avatar = makeElement("span", "plant-avatar avatar-" + (plant.icon || "leaf"), "✳");
+    avatar.setAttribute("aria-hidden", "true");
+    const details = makeElement("div", "plant-details");
+    details.append(makeElement("h3", "", plant.name));
+    details.append(makeElement("p", "plant-meta", [plant.species, plant.location].filter(Boolean).join(" · ") || "Your plant"));
+    const schedule = makeElement("div", "plant-schedule");
+    schedule.append(makeElement("span", "status status-" + status.type, status.label));
+    schedule.append(makeElement("span", "schedule-detail", "Every " + plant.interval + " days"));
+    const actions = makeElement("div", "plant-actions");
+    const waterButton = makeElement("button", "button water-button", "Watered");
+    waterButton.type = "button";
+    waterButton.setAttribute("aria-label", "Mark " + plant.name + " as watered today");
+    waterButton.addEventListener("click", function () { markWatered(plant.id); });
+    const removeButton = makeElement("button", "remove-button", "Remove");
+    removeButton.type = "button";
+    removeButton.setAttribute("aria-label", "Remove " + plant.name);
+    removeButton.addEventListener("click", function () { removePlant(plant.id); });
+    actions.append(waterButton, removeButton);
+    row.append(avatar, details, schedule, actions);
+    return row;
+  }
+
+  function makePlantCard(plant) {
+    const daysUntilDue = getDaysUntilDue(plant);
+    const status = getStatus(daysUntilDue);
+    const card = makeElement("article", "plant-card");
+    const top = makeElement("div", "plant-card-top");
+    const avatar = makeElement("span", "plant-avatar avatar-" + (plant.icon || "leaf"), "✳");
+    avatar.setAttribute("aria-hidden", "true");
+    const badge = makeElement("span", "status status-" + status.type, status.label);
+    top.append(avatar, badge);
+    const title = makeElement("h2", "", plant.name);
+    const species = makeElement("p", "plant-species", plant.species || "Plant pal");
+    const location = makeElement("p", "plant-location", plant.location || "Location not set");
+    const footer = makeElement("div", "plant-card-footer");
+    const frequency = makeElement("span", "schedule-detail", "Every " + plant.interval + " days");
+    const waterButton = makeElement("button", "button water-button", "Watered");
+    waterButton.type = "button";
+    waterButton.setAttribute("aria-label", "Mark " + plant.name + " as watered today");
+    waterButton.addEventListener("click", function () { markWatered(plant.id); });
+    const removeButton = makeElement("button", "remove-button", "Remove");
+    removeButton.type = "button";
+    removeButton.setAttribute("aria-label", "Remove " + plant.name);
+    removeButton.addEventListener("click", function () { removePlant(plant.id); });
+    footer.append(frequency, waterButton);
+    card.append(top, title, species, location, footer, removeButton);
     return card;
   }
 
-  function toggleSaved(id) {
-    if (savedIds.indexOf(id) === -1) {
-      savedIds.push(id);
+  function render() {
+    const sortedPlants = getSortedPlants();
+    const urgentCount = sortedPlants.filter(function (plant) { return getDaysUntilDue(plant) <= 0; }).length;
+    plantTotal.textContent = String(plants.length);
+    dueTotal.textContent = String(urgentCount);
+    dueCaption.textContent = urgentCount === 1 ? "plant ready for water" : "plants ready for water";
+
+    if (sortedPlants.length === 0) {
+      nextDue.textContent = "Add a plant";
+      nextCaption.textContent = "Your care calendar starts here";
     } else {
-      savedIds = savedIds.filter(function (savedId) { return savedId !== id; });
+      const next = getDaysUntilDue(sortedPlants[0]);
+      nextDue.textContent = next < 0 ? Math.abs(next) + "d late" : next === 0 ? "Today" : next === 1 ? "Tomorrow" : "In " + next + " days";
+      nextCaption.textContent = sortedPlants[0].name;
     }
-    storage.set("savedIds", savedIds);
-    renderListings();
+
+    priorityList.replaceChildren.apply(priorityList, sortedPlants.map(makePlantRow));
+    allPlants.replaceChildren.apply(allPlants, sortedPlants.map(makePlantCard));
+    emptyState.hidden = plants.length !== 0;
+    priorityList.hidden = plants.length === 0;
+    plantsEmpty.hidden = plants.length !== 0;
   }
 
-  function renderListings() {
-    const query = searchBox.value.trim().toLowerCase();
-    const matches = LISTINGS.filter(function (item) {
-      const text = (item.name + " " + item.category + " " + item.description).toLowerCase();
-      return text.indexOf(query) !== -1;
+  function save() {
+    storage.set("sproutPlants", plants);
+    render();
+  }
+
+  function markWatered(id) {
+    plants = plants.map(function (plant) {
+      return plant.id === id ? Object.assign({}, plant, { lastWateredAt: Date.now() }) : plant;
     });
-
-    grid.replaceChildren.apply(grid, matches.map(makeCard));
-    emptyMessage.hidden = matches.length > 0;
-    savedCount.textContent = savedIds.length === 0
-      ? "Tap Save on anything you like."
-      : "You've saved " + savedIds.length + " item(s) on this device.";
+    save();
   }
 
-  searchBox.addEventListener("input", renderListings);
+  function removePlant(id) {
+    plants = plants.filter(function (plant) { return plant.id !== id; });
+    save();
+  }
 
-  // ----------------------------------------------------------
-  // 5. Start up.
-  // ----------------------------------------------------------
-  renderListings();
+  function showView() {
+    const requested = (window.location.hash || "#home").slice(1);
+    const views = document.querySelectorAll("[data-view]");
+    const exists = Array.prototype.some.call(views, function (view) { return view.id === requested; });
+    const current = exists ? requested : "home";
+    views.forEach(function (view) { view.hidden = view.id !== current; });
+    document.querySelectorAll("nav a").forEach(function (link) {
+      if (link.getAttribute("href") === "#" + current) link.setAttribute("aria-current", "page");
+      else link.removeAttribute("aria-current");
+    });
+    window.scrollTo(0, 0);
+  }
+
+  document.querySelectorAll("[data-open-dialog]").forEach(function (button) {
+    button.addEventListener("click", function () { dialog.showModal(); });
+  });
+  document.querySelectorAll("[data-close-dialog]").forEach(function (button) {
+    button.addEventListener("click", function () { dialog.close(); });
+  });
+  form.addEventListener("submit", function (event) {
+    event.preventDefault();
+    const values = new FormData(form);
+    plants.push({
+      id: "plant-" + Date.now() + "-" + Math.random().toString(36).slice(2, 7),
+      name: values.get("name").trim(),
+      species: values.get("species").trim(),
+      location: values.get("location").trim(),
+      interval: Number(values.get("interval")),
+      lastWateredAt: Date.now(),
+      icon: "leaf"
+    });
+    save();
+    form.reset();
+    dialog.close();
+  });
+
+  const sitters = [
+    { name: "Maya", area: "Downtown", note: "Happy to check in on leafy roommates and follow your care notes.", initials: "M" },
+    { name: "Jordan", area: "North End", note: "Weekend plant parent with a soft spot for ferns and monstera.", initials: "J" },
+    { name: "Alex", area: "Harbourfront", note: "Can help with a quick watering visit while you're out of town.", initials: "A" }
+  ];
+  const sitterList = document.getElementById("sitter-list");
+  sitters.forEach(function (sitter) {
+    const card = makeElement("article", "sitter-card");
+    const avatar = makeElement("span", "sitter-avatar", sitter.initials);
+    const title = makeElement("h2", "", sitter.name);
+    const area = makeElement("p", "sitter-area", sitter.area + " · sample profile");
+    const note = makeElement("p", "sitter-note", sitter.note);
+    const button = makeElement("button", "button sitter-button", "Request an introduction");
+    button.type = "button";
+    button.addEventListener("click", function () {
+      button.textContent = "Interest noted for this demo";
+      button.disabled = true;
+    });
+    card.append(avatar, title, area, note, button);
+    sitterList.append(card);
+  });
+
+  window.addEventListener("hashchange", showView);
+  render();
   showView();
 })();

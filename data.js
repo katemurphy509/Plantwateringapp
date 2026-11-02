@@ -1,26 +1,13 @@
-// ============================================================
-// data.js — ALL the fake data for your prototype lives here.
-//
-// There is no database. Everything below is made up, and that is
-// on purpose: never put real people's names, emails, phone numbers
-// or addresses in this file.
-//
-// To change what appears on the Explore page, edit LISTINGS.
-// Each item is one card. Keep the same fields (id, name, category,
-// description) or ask Copilot to add new ones everywhere they're needed.
-// ============================================================
-
+// Sample plants are fictional. Changes made in the app stay in this browser.
 const STARTUP = {
-  name: "YourStartup",
-  tagline: "One sentence that says what your startup does.",
-  pitch: "Who is your customer, what problem do they have, and why is your solution better than what they use today?"
+  name: "Sprout",
+  tagline: "A calmer way to care for your plants.",
+  pitch: "Know what needs water today, keep every plant on track, and find a trusted plant sitter when life takes you away."
 };
 
-const LISTINGS = [
-  { id: 1, name: "Sample listing A", category: "Category 1", description: "A short description of this item." },
-  { id: 2, name: "Sample listing B", category: "Category 2", description: "A short description of this item." },
-  { id: 3, name: "Sample listing C", category: "Category 1", description: "A short description of this item." },
-  { id: 4, name: "Sample listing D", category: "Category 3", description: "A short description of this item." },
-  { id: 5, name: "Sample listing E", category: "Category 2", description: "A short description of this item." },
-  { id: 6, name: "Sample listing F", category: "Category 3", description: "A short description of this item." }
+const SAMPLE_PLANTS = [
+  { id: "sample-fern", name: "Bird's nest fern", species: "Asplenium nidus", location: "Living room", interval: 4, lastWatered: 5, icon: "fern" },
+  { id: "sample-pilea", name: "Chinese money plant", species: "Pilea peperomioides", location: "Kitchen window", interval: 7, lastWatered: 7, icon: "pilea" },
+  { id: "sample-monstera", name: "Monstera deliciosa", species: "Monstera deliciosa", location: "By the bookshelf", interval: 10, lastWatered: 8, icon: "monstera" },
+  { id: "sample-snake", name: "Snake plant", species: "Dracaena trifasciata", location: "Bedroom", interval: 21, lastWatered: 16, icon: "snake" }
 ];
